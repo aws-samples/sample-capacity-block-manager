@@ -1,27 +1,44 @@
 import boto3
+import requests
 from datetime import datetime, timezone
+import json
 
-dynamodb = boto3.resource('dynamodb')
+# === CONFIG ===
+STACK_NAME = 'CapacityBlockManagerStack'
+SECRET_PARAM = f'/cbm/{STACK_NAME}/apiSecretName'
+API_URL_PARAM = f'/cbm/{STACK_NAME}/apiUrl'
+
+# === INIT AWS CLIENTS ===
+ssm = boto3.client('ssm')
+secretsmanager = boto3.client('secretsmanager')
 ec2 = boto3.client('ec2')
 
-table_name = 'CapacityBlockManagerStack-CBJobTableD1DCF005-1DN87N8D98ATB'
-table = dynamodb.Table(table_name)
+# === Resolve secret name and api url from parameter store ===
+def get_ssm_param(name):
+    return ssm.get_parameter(Name=name, WithDecryption=False)['Parameter']['Value']
 
-# --- Clear table ---
-print(f"Clearing existing items from {table_name}...")
-scan = table.scan(ProjectionExpression='PK')
-with table.batch_writer() as batch:
-    for item in scan.get('Items', []):
-        batch.delete_item(Key={'PK': item['PK']})
-print("Table cleared.")
+secret_name = get_ssm_param(SECRET_PARAM)
+api_url = get_ssm_param(API_URL_PARAM)
 
-# --- Describe Capacity Reservations ---
+# === Retrieve API key from Secrets Manager ===
+def get_api_key(secret_name):
+    response = secretsmanager.get_secret_value(SecretId=secret_name)
+    return json.loads(response['SecretString'])['api_key']
+
+api_key = get_api_key(secret_name)
+headers = {
+    'x-api-key': api_key,
+    'Content-Type': 'application/json'
+}
+
+# === Describe Capacity Reservations ===
 def get_end_time(capacity_block_id):
     resp = ec2.describe_capacity_reservations(CapacityReservationIds=[capacity_block_id])
     if not resp['CapacityReservations']:
         raise Exception(f"Reservation {capacity_block_id} not found")
     return resp['CapacityReservations'][0]['EndDate']
 
+# === Test Data ===
 test_blocks = [
     {
         'PK': 'test-no-approval',
@@ -47,12 +64,9 @@ test_blocks = [
 now = datetime.now(timezone.utc)
 entries = []
 
+# === Create Entries ===
 for block in test_blocks:
     end_time = get_end_time(block['capacity_block_id'])
-    diff_days = (end_time - now).days
-    # set lookahead so we're inside it
-    # lookahead_days = max(diff_days + 1, 0)
-
     entries.append({
         **block,
         'end_time': end_time.isoformat(),
@@ -60,8 +74,11 @@ for block in test_blocks:
         'status': 'PENDING',
     })
 
-with table.batch_writer() as batch:
-    for entry in entries:
-        batch.put_item(Item=entry)
-
-print("Test items inserted.")
+# === Send POST requests to API ===
+for entry in entries:
+    print(f"[INFO] Creating compute environment: {entry['PK']}")
+    res = requests.post(api_url, json=entry, headers=headers)
+    if res.ok:
+        print(f"[OK] {entry['PK']} created.")
+    else:
+        print(f"[ERROR] {entry['PK']} failed: {res.status_code} {res.text}")

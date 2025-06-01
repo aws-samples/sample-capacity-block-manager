@@ -7,6 +7,7 @@ import * as targets from 'aws-cdk-lib/aws-events-targets';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as sns from 'aws-cdk-lib/aws-sns';
 import * as subscriptions from 'aws-cdk-lib/aws-sns-subscriptions';
+import { CapacityBlockApi } from './capacity-block-api';
 
 export class CapacityBlockManagerStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props?: cdk.StackProps) {
@@ -61,5 +62,10 @@ export class CapacityBlockManagerStack extends cdk.Stack {
 
     // Pass topic ARN to Lambda
     handler.addEnvironment('APPROVAL_TOPIC_ARN', approvalTopic.topicArn);
+
+    new CapacityBlockApi(this, 'CapacityBlockApi', {
+      lambdaCodePath: 'src/api',
+      table
+    });
   }
 }
