@@ -1,9 +1,15 @@
 #!/usr/bin/env node
 import * as cdk from 'aws-cdk-lib';
 import { CapacityBlockManagerStack } from '../lib/capacity-block-manager-stack';
+import { AwsSolutionsChecks, NagSuppressions } from 'cdk-nag';
+import { Aspects } from 'aws-cdk-lib';
 
 const app = new cdk.App();
-new CapacityBlockManagerStack(app, 'CapacityBlockManagerStack', {
+
+// Add AWS Solutions Checks to the entire app
+Aspects.of(app).add(new AwsSolutionsChecks({ verbose: true }));
+
+const stack = new CapacityBlockManagerStack(app, 'CapacityBlockManagerStack', {
   /* If you don't specify 'env', this stack will be environment-agnostic.
    * Account/Region-dependent features and context lookups will not work,
    * but a single synthesized template can be deployed anywhere. */
@@ -18,3 +24,26 @@ new CapacityBlockManagerStack(app, 'CapacityBlockManagerStack', {
 
   /* For more information, see https://docs.aws.amazon.com/cdk/latest/guide/environments.html */
 });
+
+// Add suppressions for API Gateway authorization
+// We're using API Key auth which is acceptable for this use case
+NagSuppressions.addResourceSuppressionsByPath(
+  stack,
+  [
+    '/CapacityBlockManagerStack/CapacityBlockApi/CBApi/Default/GET/Resource',
+    '/CapacityBlockManagerStack/CapacityBlockApi/CBApi/Default/POST/Resource',
+    '/CapacityBlockManagerStack/CapacityBlockApi/CBApi/Default/PUT/Resource',
+    '/CapacityBlockManagerStack/CapacityBlockApi/CBApi/Default/DELETE/Resource',
+    '/CapacityBlockManagerStack/CapacityBlockApi/CBApi/Default/PATCH/Resource',
+  ],
+  [
+    {
+      id: 'AwsSolutions-APIG4',
+      reason: 'API uses API Key authentication which is sufficient for this internal tool',
+    },
+    {
+      id: 'AwsSolutions-COG4',
+      reason: 'API uses API Key authentication instead of Cognito as it is an internal tool with limited access',
+    },
+  ]
+);
