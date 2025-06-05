@@ -8,3 +8,10 @@ cdk.out
 .venv
 lib/*.js
 bin/*.js
+
+# macOS system files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
