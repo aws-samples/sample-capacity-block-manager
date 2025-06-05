@@ -67,22 +67,26 @@ export class CapacityBlockManagerStack extends cdk.Stack {
       targets: [new targets.LambdaFunction(handler)],
     });
 
-    // SNS topic with HTTPS enforcement
-    const approvalTopic = new sns.Topic(this, 'ApprovalTopic', {
-      displayName: 'Capacity Block Extension Approvals',
-      enforceSSL: true, // Address AwsSolutions-SNS3
-    });
+    // SNS topic with HTTPS enforcement - only create if ADMIN_EMAIL is set
+    const adminEmail = process.env.ADMIN_EMAIL;
+    
+    if (adminEmail) {
+      const approvalTopic = new sns.Topic(this, 'ApprovalTopic', {
+        displayName: 'Capacity Block Extension Approvals',
+        enforceSSL: true, // Address AwsSolutions-SNS3
+      });
 
-    // Subscribe an email address (must confirm via email)
-    approvalTopic.addSubscription(
-      new subscriptions.EmailSubscription('example@example.com') // ! Change this
-    );
+      // Subscribe the admin email address (must confirm via email)
+      approvalTopic.addSubscription(
+        new subscriptions.EmailSubscription(adminEmail)
+      );
 
-    // Grant Lambda publish permissions
-    approvalTopic.grantPublish(handler);
+      // Grant Lambda publish permissions
+      approvalTopic.grantPublish(handler);
 
-    // Pass topic ARN to Lambda
-    handler.addEnvironment('APPROVAL_TOPIC_ARN', approvalTopic.topicArn);
+      // Pass topic ARN to Lambda
+      handler.addEnvironment('APPROVAL_TOPIC_ARN', approvalTopic.topicArn);
+    }
 
     // Create API with improved security
     const api = new CapacityBlockApi(this, 'CapacityBlockApi', {

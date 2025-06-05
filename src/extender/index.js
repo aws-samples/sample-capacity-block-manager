@@ -13,10 +13,12 @@ const { unmarshall } = require('@aws-sdk/util-dynamodb');
 
 const ddb = new DynamoDBClient();
 const ec2 = new EC2Client();
-const sns = new SNSClient();
+// Only initialize SNS client if APPROVAL_TOPIC_ARN is defined
+const sns = process.env.APPROVAL_TOPIC_ARN ? new SNSClient() : null;
 
 const TABLE_NAME = process.env.TABLE_NAME;
 const APPROVAL_TOPIC_ARN = process.env.APPROVAL_TOPIC_ARN;
+const APPROVAL_WORKFLOW_ENABLED = !!APPROVAL_TOPIC_ARN;
 
 exports.handler = async () => {
   const now = new Date();
@@ -53,9 +55,32 @@ exports.handler = async () => {
 
       if (item.require_approval) {
         if (!item.approval) {
-          console.log(`[INFO] Approval required for ${item.PK}, sending notification...`);
+          console.log(`[INFO] Approval required for ${item.PK}`);
           await updateStatus(item.PK, 'EXTENSION_APPROVAL_REQUIRED');
-          await sendApprovalRequest(item);
+          
+          if (APPROVAL_WORKFLOW_ENABLED) {
+            console.log(`[INFO] Sending approval notification for ${item.PK}...`);
+            await sendApprovalRequest(item);
+          } else {
+            console.log(`[INFO] Approval workflow disabled (no ADMIN_EMAIL set). Skipping notification for ${item.PK}`);
+            // If approval workflow is disabled but item requires approval, we can either:
+            // Option 1: Auto-approve (current implementation)
+            console.log(`[INFO] Auto-approving ${item.PK} since approval workflow is disabled`);
+            await ddb.send(new UpdateItemCommand({
+              TableName: TABLE_NAME,
+              Key: { PK: { S: item.PK } },
+              UpdateExpression: 'SET #approval = :a',
+              ExpressionAttributeNames: {
+                '#approval': 'approval',
+              },
+              ExpressionAttributeValues: {
+                ':a': { BOOL: true },
+              },
+            }));
+            // Option 2: Skip this item until manually approved (uncomment below if preferred)
+            // console.log(`[INFO] Skipping ${item.PK} until manually approved`);
+            // continue;
+          }
           continue;
         } else {
           console.log(`[INFO] Approval granted for ${item.PK}, proceeding with extension`);
@@ -135,8 +160,8 @@ async function updateStatus(pk, status, errorMessage = null) {
 }
 
 async function sendApprovalRequest(item) {
-  if (!APPROVAL_TOPIC_ARN) {
-    console.warn('[WARN] APPROVAL_TOPIC_ARN is not defined, skipping SNS publish');
+  if (!APPROVAL_TOPIC_ARN || !sns) {
+    console.warn('[WARN] APPROVAL_TOPIC_ARN is not defined or SNS client not initialized, skipping SNS publish');
     return;
   }
 

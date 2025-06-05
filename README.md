@@ -11,6 +11,60 @@ The Capacity Block Manager (CBM) helps you:
 - Implement approval processes for capacity changes
 - Securely manage compute environments via API
 
+## 🏗️ Architecture Overview
+
+![Capacity Block Manager Architecture](diagram.png)
+
+The Capacity Block Manager follows a simple yet effective architecture:
+
+1. **EventBridge Rule**: A scheduled EventBridge rule runs every minute, triggering the Capacity Block Manager Lambda function.
+
+2. **Lambda Function**: The Lambda function scans the DynamoDB table for capacity block records and processes each one:
+   - Checks if capacity blocks are approaching their expiration date
+   - Determines if extensions require approval based on configuration
+   - Extends capacity blocks automatically or sends approval requests
+
+3. **DynamoDB**: Stores all capacity block records with their configuration, status, and expiration details.
+
+4. **SNS Topic** (Optional): When approval is required, notifications are sent to the configured email address.
+
+5. **API Gateway**: Provides a RESTful API for managing capacity block records:
+   - Creating and updating capacity block configurations
+   - Approving extension requests
+   - Retrieving status information
+
+6. **Secrets Manager**: Securely stores the API key used for authentication.
+
+This serverless architecture ensures reliable, automated management of capacity blocks with minimal operational overhead. The system continuously monitors your capacity blocks and takes appropriate action based on your configured policies.
+
+---
+
+## 🎯 Key Use Cases
+
+### Continuous Capacity Management
+
+For workloads that require uninterrupted access to reserved compute capacity:
+
+- **Automated Capacity Extension**: Automatically detect when capacity blocks are approaching expiration and extend them without manual intervention
+- **Continuous Workload Support**: Ensure critical workloads maintain access to specialized instance types (like GPU instances) without interruption
+- **Capacity Planning**: Track usage patterns and automate requests for capacity based on historical needs
+- **Cost Optimization**: Maintain the right balance between on-demand and reserved capacity to optimize costs
+
+### Approval-Based Extension Workflows
+
+For organizations that need governance over capacity extensions:
+
+- **Expiration Notifications**: Receive timely alerts when capacity blocks are approaching their end date
+- **Approval Workflows**: Implement governance processes requiring explicit approval before extending capacity commitments
+- **Financial Controls**: Enable finance teams to review and approve capacity extensions that have budget implications
+- **Capacity Justification**: Document the business case for extending capacity blocks through the approval process
+
+The solution is particularly valuable for:
+- ML/AI workloads requiring consistent access to GPU instances
+- Financial services with predictable, high-performance computing needs
+- Research teams with long-running computational workloads
+- Enterprise applications with strict SLAs requiring guaranteed capacity
+
 ---
 
 ## 🔧 Deployment Instructions
@@ -24,7 +78,11 @@ npm install
 2. **Deploy the stack**
 
 ```bash
+# Deploy without email notifications
 npx cdk deploy
+
+# OR deploy with email notifications for approval workflow
+ADMIN_EMAIL=your.email@example.com npx cdk deploy
 ```
 
 This will:
@@ -33,9 +91,19 @@ This will:
 - Deploy a Lambda function
 - Deploy an API Gateway with API key authentication
 - Generate and store the API key in AWS Secrets Manager
+- If ADMIN_EMAIL is set:
+  - Create an SNS topic for approval notifications
+  - Subscribe the provided email address to the topic
 - Output the following **SSM parameters**:
   - `/cbm/<StackName>/apiSecretName` — name of the secret containing the API key
   - `/cbm/<StackName>/apiUrl` — the full URL of the deployed API
+
+### Approval Workflow
+
+The approval workflow is optional and depends on whether you set the ADMIN_EMAIL environment variable during deployment:
+
+- **With ADMIN_EMAIL set**: The system will send email notifications when capacity blocks require approval for extension. The specified email address will receive these notifications.
+- **Without ADMIN_EMAIL set**: The approval workflow is disabled, and capacity blocks marked as requiring approval will be automatically approved.
 
 ---
 
