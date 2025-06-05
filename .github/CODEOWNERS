@@ -1,0 +1,7 @@
+# These owners will be the default owners for everything in the repo.
+# Unless a later match takes precedence, they will be requested for
+# review when someone opens a pull request.
+*       @aws-samples/sample-capacity-block-manager-maintainers
+
+# You can specify different owners for specific paths
+# /docs/  @docs-team
