@@ -247,69 +247,94 @@ export class CapacityBlockApi extends Construct {
       webAclArn: webAcl.attrArn,
     });
 
-    // Add methods with improved security
-    for (const method of ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']) {
+    // Create integration response configuration
+    const integrationResponses = [
+      {
+        statusCode: '200',
+        responseParameters: {
+          'method.response.header.Content-Type': "'application/json'",
+          'method.response.header.Access-Control-Allow-Origin': "'*'",
+        },
+      },
+      {
+        selectionPattern: '4\\d{2}',
+        statusCode: '400',
+        responseParameters: {
+          'method.response.header.Content-Type': "'application/json'",
+          'method.response.header.Access-Control-Allow-Origin': "'*'",
+        },
+      },
+      {
+        selectionPattern: '5\\d{2}',
+        statusCode: '500',
+        responseParameters: {
+          'method.response.header.Content-Type': "'application/json'",
+          'method.response.header.Access-Control-Allow-Origin': "'*'",
+        },
+      },
+    ];
+
+    // Create method response configuration
+    const methodResponses = [
+      {
+        statusCode: '200',
+        responseParameters: {
+          'method.response.header.Content-Type': true,
+          'method.response.header.Access-Control-Allow-Origin': true,
+        },
+      },
+      {
+        statusCode: '400',
+        responseParameters: {
+          'method.response.header.Content-Type': true,
+          'method.response.header.Access-Control-Allow-Origin': true,
+        },
+      },
+      {
+        statusCode: '500',
+        responseParameters: {
+          'method.response.header.Content-Type': true,
+          'method.response.header.Access-Control-Allow-Origin': true,
+        },
+      },
+    ];
+
+    // Add methods to root resource for collection operations
+    for (const method of ['GET', 'POST']) {
       this.api.root.addMethod(
         method, 
         new apigateway.LambdaIntegration(this.handler, {
-          // Add request/response mapping for better error handling
           proxy: true,
-          integrationResponses: [
-            {
-              statusCode: '200',
-              responseParameters: {
-                'method.response.header.Content-Type': "'application/json'",
-                'method.response.header.Access-Control-Allow-Origin': "'*'",
-              },
-            },
-            {
-              selectionPattern: '4\\d{2}',
-              statusCode: '400',
-              responseParameters: {
-                'method.response.header.Content-Type': "'application/json'",
-                'method.response.header.Access-Control-Allow-Origin': "'*'",
-              },
-            },
-            {
-              selectionPattern: '5\\d{2}',
-              statusCode: '500',
-              responseParameters: {
-                'method.response.header.Content-Type': "'application/json'",
-                'method.response.header.Access-Control-Allow-Origin': "'*'",
-              },
-            },
-          ],
+          integrationResponses,
         }),
         {
           apiKeyRequired: true,
-          // Add request validation
           requestValidator: requestValidator,
-          // Add request models for POST and PUT
-          requestModels: method === 'POST' || method === 'PUT' ? { 'application/json': requestModel } : undefined,
-          // Add method responses
-          methodResponses: [
-            {
-              statusCode: '200',
-              responseParameters: {
-                'method.response.header.Content-Type': true,
-                'method.response.header.Access-Control-Allow-Origin': true,
-              },
-            },
-            {
-              statusCode: '400',
-              responseParameters: {
-                'method.response.header.Content-Type': true,
-                'method.response.header.Access-Control-Allow-Origin': true,
-              },
-            },
-            {
-              statusCode: '500',
-              responseParameters: {
-                'method.response.header.Content-Type': true,
-                'method.response.header.Access-Control-Allow-Origin': true,
-              },
-            },
-          ],
+          requestModels: method === 'POST' ? { 'application/json': requestModel } : undefined,
+          methodResponses,
+        }
+      );
+    }
+
+    // Create resource for individual item operations with path parameter
+    const pkResource = this.api.root.addResource('{PK}');
+    
+    // Add methods to PK resource for individual item operations
+    for (const method of ['GET', 'PUT', 'DELETE', 'PATCH']) {
+      pkResource.addMethod(
+        method, 
+        new apigateway.LambdaIntegration(this.handler, {
+          proxy: true,
+          integrationResponses,
+        }),
+        {
+          apiKeyRequired: true,
+          requestValidator: requestValidator,
+          requestModels: method === 'PUT' ? { 'application/json': requestModel } : undefined,
+          methodResponses,
+          requestParameters: {
+            'method.request.path.PK': true, // Make PK path parameter required
+          },
         }
       );
     }

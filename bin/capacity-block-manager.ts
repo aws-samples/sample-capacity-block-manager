@@ -30,11 +30,15 @@ const stack = new CapacityBlockManagerStack(app, 'CapacityBlockManagerStack', {
 NagSuppressions.addResourceSuppressionsByPath(
   stack,
   [
+    // Root resource methods (collection operations)
     '/CapacityBlockManagerStack/CapacityBlockApi/CBApi/Default/GET/Resource',
     '/CapacityBlockManagerStack/CapacityBlockApi/CBApi/Default/POST/Resource',
-    '/CapacityBlockManagerStack/CapacityBlockApi/CBApi/Default/PUT/Resource',
-    '/CapacityBlockManagerStack/CapacityBlockApi/CBApi/Default/DELETE/Resource',
-    '/CapacityBlockManagerStack/CapacityBlockApi/CBApi/Default/PATCH/Resource',
+    
+    // PK resource methods (item operations)
+    '/CapacityBlockManagerStack/CapacityBlockApi/CBApi/Default/{PK}/GET/Resource',
+    '/CapacityBlockManagerStack/CapacityBlockApi/CBApi/Default/{PK}/PUT/Resource',
+    '/CapacityBlockManagerStack/CapacityBlockApi/CBApi/Default/{PK}/DELETE/Resource',
+    '/CapacityBlockManagerStack/CapacityBlockApi/CBApi/Default/{PK}/PATCH/Resource',
   ],
   [
     {

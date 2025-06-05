@@ -117,7 +117,8 @@ def run_api_tests():
         # Test 3: GET specific entries
         print("\n--- Testing GET (specific entries) ---")
         for pk in created_entries:
-            response = requests.get(f"{api_url}?PK={pk}", headers=headers)
+            # Using path parameter instead of query parameter
+            response = requests.get(f"{api_url}/{pk}", headers=headers)
             print_result("GET", pk, response.ok, response.status_code, response.text if not response.ok else None)
             if response.ok and response.json():
                 print(f"Retrieved: {json.dumps(response.json(), indent=2)}")
@@ -125,14 +126,14 @@ def run_api_tests():
         # Test 4: PUT (update) entries
         print("\n--- Testing PUT (update entries) ---")
         for pk in created_entries:
-            # Get current entry
-            get_response = requests.get(f"{api_url}?PK={pk}", headers=headers)
+            # Get current entry using path parameter
+            get_response = requests.get(f"{api_url}/{pk}", headers=headers)
             if get_response.ok and get_response.json():
-                entry = get_response.json()[0] if isinstance(get_response.json(), list) else get_response.json()
+                entry = get_response.json()
                 # Update a field
                 entry['name'] = f"{entry['name']}-UPDATED"
-                # Send PUT request
-                put_response = requests.put(api_url, json=entry, headers=headers)
+                # Send PUT request with path parameter
+                put_response = requests.put(f"{api_url}/{pk}", json=entry, headers=headers)
                 print_result("PUT", pk, put_response.ok, put_response.status_code, 
                              put_response.text if not put_response.ok else None)
         
@@ -140,8 +141,8 @@ def run_api_tests():
         print("\n--- Testing PATCH (approve entries) ---")
         for entry in TEST_ENTRIES:
             if entry['require_approval'] and entry['PK'] in created_entries:
-                patch_data = {'PK': entry['PK'], 'approval': True}
-                patch_response = requests.patch(api_url, json=patch_data, headers=headers)
+                # Using path parameter for PATCH
+                patch_response = requests.patch(f"{api_url}/{entry['PK']}", headers=headers)
                 print_result("PATCH", entry['PK'], patch_response.ok, patch_response.status_code,
                              patch_response.text if not patch_response.ok else None)
         
@@ -161,7 +162,8 @@ def run_api_tests():
         print("\n=== CLEANING UP ===")
         for pk in created_entries:
             print(f"Deleting test entry: {pk}")
-            delete_response = requests.delete(f"{api_url}?PK={pk}", headers=headers)
+            # Using path parameter for DELETE
+            delete_response = requests.delete(f"{api_url}/{pk}", headers=headers)
             print_result("DELETE", pk, delete_response.ok, delete_response.status_code,
                          delete_response.text if not delete_response.ok else None)
         

@@ -7,39 +7,58 @@ const TABLE_NAME = process.env.TABLE_NAME;
 exports.handler = async (event) => {
   const method = event.httpMethod;
   const body = event.body ? JSON.parse(event.body) : {};
-  const pk = event.queryStringParameters?.PK || body.PK;
+  
+  // Get PK from path parameters if available, otherwise from body
+  const pk = event.pathParameters?.PK || body.PK;
 
   try {
-    switch (method) {
-      case 'GET': {
-        if (pk) {
-          const res = await ddb.send(new GetItemCommand({
-            TableName: TABLE_NAME,
-            Key: { PK: { S: pk } },
-          }));
-          return res.Item
-            ? response(200, unmarshall(res.Item))
-            : response(404, { error: 'Not found' });
-        } else {
+    // Handle collection-level operations (no PK in path)
+    if (!event.pathParameters?.PK) {
+      switch (method) {
+        case 'GET': {
+          // List all items
           const res = await ddb.send(new ScanCommand({ TableName: TABLE_NAME }));
           return response(200, res.Items.map(unmarshall));
         }
+        
+        case 'POST': {
+          // Create new item
+          if (!body.PK) return response(400, { error: 'PK required in request body' });
+          await ddb.send(new PutItemCommand({
+            TableName: TABLE_NAME,
+            Item: marshall(body),
+          }));
+          return response(201, { status: 'Created' });
+        }
+        
+        default:
+          return response(405, { error: 'Method not allowed on collection endpoint' });
       }
-
-      case 'POST': {
-        if (!pk) return response(400, { error: 'PK required' });
-        await ddb.send(new PutItemCommand({
+    }
+    
+    // Handle item-level operations (PK in path)
+    switch (method) {
+      case 'GET': {
+        // Get specific item
+        const res = await ddb.send(new GetItemCommand({
           TableName: TABLE_NAME,
-          Item: marshall(body),
+          Key: { PK: { S: pk } },
         }));
-        return response(201, { status: 'Created' });
+        return res.Item
+          ? response(200, unmarshall(res.Item))
+          : response(404, { error: 'Not found' });
       }
 
       case 'PUT': {
-        if (!pk) return response(400, { error: 'PK required' });
+        // Update item
         const updates = [];
         const exprAttrNames = {};
         const exprAttrValues = {};
+
+        // Ensure body.PK matches path parameter if provided
+        if (body.PK && body.PK !== pk) {
+          return response(400, { error: 'PK in body must match PK in path' });
+        }
 
         for (const [key, value] of Object.entries(body)) {
           if (key !== 'PK') {
@@ -63,7 +82,7 @@ exports.handler = async (event) => {
       }
 
       case 'DELETE': {
-        if (!pk) return response(400, { error: 'PK required' });
+        // Delete item
         await ddb.send(new DeleteItemCommand({
           TableName: TABLE_NAME,
           Key: { PK: { S: pk } },
@@ -72,7 +91,7 @@ exports.handler = async (event) => {
       }
 
       case 'PATCH': {
-        if (!pk) return response(400, { error: 'PK required' });
+        // Approve item
         await ddb.send(new UpdateItemCommand({
           TableName: TABLE_NAME,
           Key: { PK: { S: pk } },
@@ -97,6 +116,16 @@ exports.handler = async (event) => {
   }
 };
 
+function response(statusCode, body) {
+  return {
+    statusCode,
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+    },
+    body: JSON.stringify(body),
+  };
+}
 function response(statusCode, body) {
   return {
     statusCode,

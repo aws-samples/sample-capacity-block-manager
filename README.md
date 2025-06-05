@@ -91,14 +91,14 @@ All requests must include the `x-api-key` header with your API key.
 
 ### Supported Methods
 
-| Method  | Endpoint      | Description                        | Query Parameters |
+| Method  | Endpoint      | Description                        | Path Parameters  |
 |---------|---------------|------------------------------------|------------------|
 | `GET`   | `/`           | List all compute environments      | None             |
-| `GET`   | `/?PK=...`    | Get one environment by PK          | `PK` (required)  |
+| `GET`   | `/{PK}`       | Get one environment by PK          | `PK` (required)  |
 | `POST`  | `/`           | Create a new compute environment   | None             |
-| `PUT`   | `/`           | Update an existing environment     | None             |
-| `DELETE`| `/`           | Delete by PK                       | `PK` (required)  |
-| `PATCH` | `/`           | Approve an environment             | `approval=true`  |
+| `PUT`   | `/{PK}`       | Update an existing environment     | `PK` (required)  |
+| `DELETE`| `/{PK}`       | Delete by PK                       | `PK` (required)  |
+| `PATCH` | `/{PK}`       | Approve an environment             | `PK` (required)  |
 
 ### Data Model
 
@@ -134,7 +134,7 @@ curl -X GET $API_URL \
 #### Get a Specific Compute Environment
 
 ```bash
-curl -X GET "$API_URL?PK=env-123" \
+curl -X GET "$API_URL/{PK}" \
   -H "x-api-key: $API_KEY" \
   -H "Content-Type: application/json"
 ```
@@ -162,11 +162,10 @@ curl -X POST $API_URL \
 #### Update an Existing Compute Environment
 
 ```bash
-curl -X PUT $API_URL \
+curl -X PUT "$API_URL/{PK}" \
   -H "x-api-key: $API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "PK": "env-123",
     "instanceCount": 16,
     "endDate": "2025-12-31T23:59:59Z"
   }'
@@ -175,18 +174,15 @@ curl -X PUT $API_URL \
 #### Approve a Compute Environment
 
 ```bash
-curl -X PATCH "$API_URL?PK=env-123" \
+curl -X PATCH "$API_URL/{PK}" \
   -H "x-api-key: $API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "approved": true
-  }'
+  -H "Content-Type: application/json"
 ```
 
 #### Delete a Compute Environment
 
 ```bash
-curl -X DELETE "$API_URL?PK=env-123" \
+curl -X DELETE "$API_URL/{PK}" \
   -H "x-api-key: $API_KEY"
 ```
 
