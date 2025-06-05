@@ -11,7 +11,7 @@ The Capacity Block Manager (CBM) helps you:
 - Implement approval processes for capacity changes
 - Securely manage compute environments via API
 
-## 🏗️ Architecture Overview
+## 🏗️ Architecture 
 
 ![Capacity Block Manager Architecture](diagram.png)
 
