@@ -216,16 +216,17 @@ curl -X POST $API_URL \
   -H "x-api-key: $API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "PK": "env-123",
-    "capacityReservationId": "cr-0123456789abcdef0",
-    "instanceType": "p4d.24xlarge",
-    "availabilityZone": "us-east-1a",
-    "platform": "Linux/UNIX",
-    "tenancy": "default",
-    "startDate": "2025-01-01T00:00:00Z",
-    "endDate": "2025-06-30T23:59:59Z",
-    "instanceCount": 8,
-    "approved": false
+    "PK": "test-requires-approval",
+    "name": "TestRequiresApprovalJob",
+    "region": "us-east-1",
+    "instance_type": "p4de.24xlarge",
+    "capacity_block_id": "cr-test67890",
+    "extend_by_days": 1,
+    "require_approval": true,
+    "approval": false,
+    "extension_lookahead_days": 2,
+    "status": "PENDING",
+    "end_time": "2025-06-13T17:00:00Z"
   }'
 ```
 
