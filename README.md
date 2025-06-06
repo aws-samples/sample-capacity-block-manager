@@ -1,3 +1,5 @@
+![](./logo.png)
+
 # Capacity Block Manager (CBM)
 
 This project automates management of AWS Capacity Block compute environments using a CDK-deployed API and Lambda function. It supports extension logic, approval workflows, and secure API-key-based access.
