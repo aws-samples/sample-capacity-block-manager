@@ -1,299 +1,336 @@
+# Guidance for Capacity Block Manager on AWS
+
 ![](./logo.png)
 
-# Capacity Block Manager (CBM)
+This Guidance demonstrates how to automate management of AWS Capacity Block compute environments using a CDK-deployed API and Lambda function. It supports extension logic, approval workflows, and secure API-key-based access for continuous capacity management.
 
-This project automates management of AWS Capacity Block compute environments using a CDK-deployed API and Lambda function. It supports extension logic, approval workflows, and secure API-key-based access.
+## Table of Contents
 
-## 🔍 Overview
+1. [Overview](#overview)
+    - [Cost](#cost)
+2. [Prerequisites](#prerequisites)
+    - [Operating System](#operating-system)
+    - [AWS CDK Bootstrap](#aws-cdk-bootstrap)
+3. [Deployment Steps](#deployment-steps)
+4. [Deployment Validation](#deployment-validation)
+5. [Running the Guidance](#running-the-guidance)
+6. [Next Steps](#next-steps)
+7. [Cleanup](#cleanup)
+8. [FAQ, known issues, additional considerations, and limitations](#faq-known-issues-additional-considerations-and-limitations)
 
-The Capacity Block Manager (CBM) helps you:
+## Overview
 
-- Track and manage AWS Capacity Block reservations
-- Automate extension workflows for existing capacity blocks
-- Implement approval processes for capacity changes
-- Securely manage compute environments via API
-
-## 🏗️ Architecture 
+This Guidance automates the entire capacity block lifecycle management process for organizations using AWS Capacity Blocks. It solves the challenges of manual capacity management by providing automated extension detection that continuously monitors capacity blocks approaching expiration, configurable approval workflows for capacity extensions, secure API management with RESTful API and authentication for programmatic access, and cost optimization that maintains optimal balance between on-demand and reserved capacity.
 
 ![Capacity Block Manager Architecture](diagram.png)
 
-The Capacity Block Manager follows a simple yet effective architecture:
+The Capacity Block Manager follows a serverless architecture:
 
-1. **EventBridge Rule**: A scheduled EventBridge rule runs every minute, triggering the Capacity Block Manager Lambda function.
+1. **EventBridge Rule**: A scheduled EventBridge rule runs every minute, triggering the Capacity Block Manager Lambda function
+2. **Lambda Function**: Scans DynamoDB for capacity block records and processes extensions based on configuration
+3. **DynamoDB**: Stores capacity block records with configuration, status, and expiration details
+4. **SNS Topic** (Optional): Sends approval notifications when required
+5. **API Gateway**: Provides RESTful API for managing capacity block records with authentication
+6. **Secrets Manager**: Securely stores API keys with automatic rotation
 
-2. **Lambda Function**: The Lambda function scans the DynamoDB table for capacity block records and processes each one:
-   - Checks if capacity blocks are approaching their expiration date
-   - Determines if extensions require approval based on configuration
-   - Extends capacity blocks automatically or sends approval requests
+### Cost
 
-3. **DynamoDB**: Stores all capacity block records with their configuration, status, and expiration details.
+You are responsible for the cost of the AWS services used while running this Guidance. As of December 2024, the cost for running this Guidance with the default settings in the US East (Ohio) region is approximately $7.40 per month for processing typical capacity block management workloads.
 
-4. **SNS Topic** (Optional): When approval is required, notifications are sent to the configured email address.
+We recommend creating a [Budget](https://docs.aws.amazon.com/cost-management/latest/userguide/budgets-managing-costs.html) through [AWS Cost Explorer](https://aws.amazon.com/aws-cost-management/aws-cost-explorer/) to help manage costs. Prices are subject to change. For full details, refer to the pricing webpage for each AWS service used in this Guidance.
 
-5. **API Gateway**: Provides a RESTful API for managing capacity block records:
-   - Creating and updating capacity block configurations
-   - Approving extension requests
-   - Retrieving status information
+#### Sample Cost Table
 
-6. **Secrets Manager**: Securely stores the API key used for authentication.
+The following table provides a sample cost breakdown for deploying this Guidance with the default parameters in the US East (Ohio) Region for one month.
 
-This serverless architecture ensures reliable, automated management of capacity blocks with minimal operational overhead. The system continuously monitors your capacity blocks and takes appropriate action based on your configured policies.
+| AWS service | Dimensions | Cost [USD] |
+| ----------- | ------------ | ------------ |
+| AWS WAF | 1 Web ACL with 2 rules | $7.00 |
+| AWS Secrets Manager | 1 secret with rotation | $0.40 |
+| AWS Lambda | 200 requests per month | $0.00 |
+| Amazon DynamoDB | Small data storage (.001 GB) | $0.00 |
+| Amazon EventBridge | 90 events per month | $0.00 |
+| Amazon API Gateway | 90 REST API requests per month | $0.00 |
+| Amazon SNS | 90 notifications per month | $0.00 |
+| **Total** | | **$7.40** |
 
----
+## Prerequisites
 
-## 🎯 Key Use Cases
+### Operating System
 
-### Continuous Capacity Management
+These deployment instructions are optimized to best work on **Amazon Linux 2023 AMI**. Deployment on another OS may require additional steps.
 
-For workloads that require uninterrupted access to reserved compute capacity:
+Required software:
+- Node.js 18.x or later
+- npm 8.x or later
+- AWS CLI v2
+- Git
 
-- **Automated Capacity Extension**: Automatically detect when capacity blocks are approaching expiration and extend them without manual intervention
-- **Continuous Workload Support**: Ensure critical workloads maintain access to specialized instance types (like GPU instances) without interruption
-- **Capacity Planning**: Track usage patterns and automate requests for capacity based on historical needs
-- **Cost Optimization**: Maintain the right balance between on-demand and reserved capacity to optimize costs
-
-### Approval-Based Extension Workflows
-
-For organizations that need governance over capacity extensions:
-
-- **Expiration Notifications**: Receive timely alerts when capacity blocks are approaching their end date
-- **Approval Workflows**: Implement governance processes requiring explicit approval before extending capacity commitments
-- **Financial Controls**: Enable finance teams to review and approve capacity extensions that have budget implications
-- **Capacity Justification**: Document the business case for extending capacity blocks through the approval process
-
-The solution is particularly valuable for:
-- ML/AI workloads requiring consistent access to GPU instances
-- Financial services with predictable, high-performance computing needs
-- Research teams with long-running computational workloads
-- Enterprise applications with strict SLAs requiring guaranteed capacity
-
----
-
-## 🔧 Deployment Instructions
-
-1. **Install dependencies**
-
+Install commands for Amazon Linux 2023:
 ```bash
-npm install
+# Install Node.js and npm
+sudo dnf install nodejs npm -y
+
+# Install AWS CLI v2
+curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+unzip awscliv2.zip
+sudo ./aws/install
+
+# Verify installations
+node --version
+npm --version
+aws --version
 ```
 
-2. **Deploy the stack**
+### AWS CDK Bootstrap
+
+This Guidance uses AWS CDK. If you are using AWS CDK for the first time, please perform the following bootstrapping:
 
 ```bash
-# Deploy without email notifications
-npx cdk deploy
-
-# OR deploy with email notifications for approval workflow
-ADMIN_EMAIL=your.email@example.com npx cdk deploy
+npm install -g aws-cdk
+cdk bootstrap aws://ACCOUNT-NUMBER/REGION
 ```
 
-This will:
+Replace `ACCOUNT-NUMBER` with your AWS account ID and `REGION` with your preferred AWS region.
 
-- Create a DynamoDB table
-- Deploy a Lambda function
-- Deploy an API Gateway with API key authentication
-- Generate and store the API key in AWS Secrets Manager
-- If ADMIN_EMAIL is set:
-  - Create an SNS topic for approval notifications
-  - Subscribe the provided email address to the topic
-- Output the following **SSM parameters**:
-  - `/cbm/<StackName>/apiSecretName` — name of the secret containing the API key
-  - `/cbm/<StackName>/apiUrl` — the full URL of the deployed API
+### AWS Account Requirements
 
-### Approval Workflow
+- AWS CLI configured with appropriate permissions
+- IAM permissions for:
+  - Lambda function creation and execution
+  - DynamoDB table creation and management
+  - API Gateway creation and management
+  - EventBridge rule creation
+  - Secrets Manager access
+  - SNS topic creation (if using approval workflow)
+  - WAF Web ACL creation
 
-The approval workflow is optional and depends on whether you set the ADMIN_EMAIL environment variable during deployment:
+### Service Limits
 
-- **With ADMIN_EMAIL set**: The system will send email notifications when capacity blocks require approval for extension. The specified email address will receive these notifications.
-- **Without ADMIN_EMAIL set**: The approval workflow is disabled, and capacity blocks marked as requiring approval will be automatically approved.
+This Guidance operates within default AWS service limits. No service limit increases are required for typical usage patterns.
 
----
+### Supported Regions
 
-## 📡 Using the API
+This Guidance can be deployed in any AWS region that supports all the required services:
+- AWS Lambda
+- Amazon DynamoDB
+- Amazon API Gateway
+- Amazon EventBridge
+- AWS Secrets Manager
+- Amazon SNS
+- AWS WAF
 
-Once deployed:
+## Deployment Steps
 
-1. Look at the CloudFormation output:
-   - `ApiSecretName` → name of the Secrets Manager entry holding the API key
-   - `ApiUrlSSMParameter` → parameter name in SSM for the API Gateway URL
+1. Clone the repository:
+   ```bash
+   git clone <repository-url>
+   ```
 
-2. Use your preferred AWS tooling to retrieve values:
+2. Navigate to the project directory:
+   ```bash
+   cd sample-capacity-block-manager
+   ```
 
-```bash
-aws ssm get-parameter --name /cbm/CapacityBlockManagerStack/apiUrl
-aws ssm get-parameter --name /cbm/CapacityBlockManagerStack/apiSecretName
-```
+3. Install dependencies:
+   ```bash
+   npm install
+   ```
 
-3. Retrieve the API key from Secrets Manager:
+4. (Optional) Set up email notifications for approval workflow:
+   ```bash
+   export ADMIN_EMAIL=your.email@example.com
+   ```
 
-```bash
-# First get the secret name
-SECRET_NAME=$(aws ssm get-parameter --name /cbm/CapacityBlockManagerStack/apiSecretName --query "Parameter.Value" --output text)
+5. Deploy the stack:
+   ```bash
+   npx cdk deploy
+   ```
 
-# Then retrieve the actual API key
-API_KEY=$(aws secretsmanager get-secret-value --secret-id $SECRET_NAME --query "SecretString" --output text)
-```
+6. Capture the API URL and Secret Name from the deployment output or retrieve from SSM:
+   ```bash
+   # Get API URL
+   aws ssm get-parameter --name /cbm/CapacityBlockManagerStack/apiUrl --query "Parameter.Value" --output text
+   
+   # Get Secret Name
+   aws ssm get-parameter --name /cbm/CapacityBlockManagerStack/apiSecretName --query "Parameter.Value" --output text
+   ```
 
-4. Get the API URL:
+## Deployment Validation
 
-```bash
-API_URL=$(aws ssm get-parameter --name /cbm/CapacityBlockManagerStack/apiUrl --query "Parameter.Value" --output text)
-```
+1. Open the CloudFormation console and verify the status of the template with the name `CapacityBlockManagerStack`
 
----
+2. If deployment is successful, you should see:
+   - A DynamoDB table with the name starting with `CapacityBlockManagerStack-CBJobTable`
+   - Lambda functions for capacity block processing and API handling
+   - An API Gateway with the name `CapacityBlock API`
+   - A Secrets Manager secret for API key storage
 
-## 🧪 Test Script Example
+3. Run the following CLI command to validate the deployment:
+   ```bash
+   aws cloudformation describe-stacks --stack-name CapacityBlockManagerStack --query "Stacks[0].StackStatus"
+   ```
+   
+   Expected output: `"CREATE_COMPLETE"`
 
-See [`test/seed_compute_envs_via_api.py`](./test/seed_compute_envs_via_api.py):
+4. Test API connectivity:
+   ```bash
+   # Retrieve API key
+   SECRET_NAME=$(aws ssm get-parameter --name /cbm/CapacityBlockManagerStack/apiSecretName --query "Parameter.Value" --output text)
+   API_KEY=$(aws secretsmanager get-secret-value --secret-id $SECRET_NAME --query "SecretString" --output text | jq -r '.api_key')
+   
+   # Get API URL
+   API_URL=$(aws ssm get-parameter --name /cbm/CapacityBlockManagerStack/apiUrl --query "Parameter.Value" --output text)
+   
+   # Test API
+   curl -X GET $API_URL -H "x-api-key: $API_KEY" -H "Content-Type: application/json"
+   ```
 
-- Fetches the API key and URL from SSM
-- Looks up active Capacity Block reservations
-- Posts entries to the API using `POST`
-- Can be used to test both approval and non-approval workflows
+## Running the Guidance
 
-> **Note:** Be sure to set the correct AWS credentials/profile with access to SSM, Secrets Manager, and EC2 DescribeCapacityReservations.
+### Guidance Inputs
 
----
-
-## 📚 API Reference
-
-All requests must include the `x-api-key` header with your API key.
-
-### Supported Methods
-
-| Method  | Endpoint      | Description                        | Path Parameters  |
-|---------|---------------|------------------------------------|------------------|
-| `GET`   | `/`           | List all compute environments      | None             |
-| `GET`   | `/{PK}`       | Get one environment by PK          | `PK` (required)  |
-| `POST`  | `/`           | Create a new compute environment   | None             |
-| `PUT`   | `/{PK}`       | Update an existing environment     | `PK` (required)  |
-| `DELETE`| `/{PK}`       | Delete by PK                       | `PK` (required)  |
-| `PATCH` | `/{PK}`       | Approve an environment             | `PK` (required)  |
-
-### Data Model
-
-Compute environment objects have the following structure:
+The system processes capacity block records stored in DynamoDB with the following structure:
 
 ```json
 {
-  "PK": "string",                  // Primary key (unique identifier)
-  "capacityReservationId": "string", // AWS Capacity Reservation ID
-  "instanceType": "string",        // EC2 instance type
-  "availabilityZone": "string",    // AWS Availability Zone
-  "platform": "string",            // Platform (e.g., "Linux/UNIX")
-  "tenancy": "string",             // Tenancy type
-  "startDate": "string",           // ISO date string
-  "endDate": "string",             // ISO date string
-  "instanceCount": number,         // Number of instances
-  "approved": boolean,             // Approval status
-  "createdAt": "string",           // ISO date string
-  "updatedAt": "string"            // ISO date string
+  "PK": "unique-identifier",
+  "capacity_block_id": "cr-1234567890abcdef0",
+  "instance_type": "p4de.24xlarge",
+  "region": "us-east-1",
+  "end_time": "2025-06-13T17:00:00Z",
+  "extend_by_days": 7,
+  "require_approval": false,
+  "extension_lookahead_days": 2,
+  "status": "ACTIVE"
 }
 ```
 
-### Example API Requests
+### Commands to Run
 
-#### List All Compute Environments
+1. **Create a capacity block record via API**:
+   ```bash
+   curl -X POST $API_URL \
+     -H "x-api-key: $API_KEY" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "PK": "test-capacity-block",
+       "capacity_block_id": "cr-1234567890abcdef0",
+       "instance_type": "p4de.24xlarge",
+       "region": "us-east-1",
+       "end_time": "2025-06-13T17:00:00Z",
+       "extend_by_days": 7,
+       "require_approval": false,
+       "extension_lookahead_days": 2,
+       "status": "ACTIVE"
+     }'
+   ```
 
-```bash
-curl -X GET $API_URL \
-  -H "x-api-key: $API_KEY" \
-  -H "Content-Type: application/json"
-```
+2. **List all capacity block records**:
+   ```bash
+   curl -X GET $API_URL \
+     -H "x-api-key: $API_KEY" \
+     -H "Content-Type: application/json"
+   ```
 
-#### Get a Specific Compute Environment
+3. **Use the test script** (requires Python and boto3):
+   ```bash
+   cd test
+   pip install -r requirements.txt
+   python seed_compute_envs_via_api.py
+   ```
 
-```bash
-curl -X GET "$API_URL/{PK}" \
-  -H "x-api-key: $API_KEY" \
-  -H "Content-Type: application/json"
-```
+### Expected Output
 
-#### Create a New Compute Environment
-
-```bash
-curl -X POST $API_URL \
-  -H "x-api-key: $API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "PK": "test-requires-approval",
-    "name": "TestRequiresApprovalJob",
-    "region": "us-east-1",
-    "instance_type": "p4de.24xlarge",
-    "capacity_block_id": "cr-test67890",
-    "extend_by_days": 1,
-    "require_approval": true,
-    "approval": false,
-    "extension_lookahead_days": 2,
-    "status": "PENDING",
-    "end_time": "2025-06-13T17:00:00Z"
-  }'
-```
-
-#### Update an Existing Compute Environment
-
-```bash
-curl -X PUT "$API_URL/{PK}" \
-  -H "x-api-key: $API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "instanceCount": 16,
-    "endDate": "2025-12-31T23:59:59Z"
-  }'
-```
-
-#### Approve a Compute Environment
-
-```bash
-curl -X PATCH "$API_URL/{PK}" \
-  -H "x-api-key: $API_KEY" \
-  -H "Content-Type: application/json"
-```
-
-#### Delete a Compute Environment
-
-```bash
-curl -X DELETE "$API_URL/{PK}" \
-  -H "x-api-key: $API_KEY"
-```
-
-### Response Formats
-
-Successful responses will return:
-
+**API Response for successful creation**:
 ```json
 {
   "statusCode": 200,
-  "body": "..."  // JSON string containing result data
+  "body": "{\"message\":\"Item created successfully\",\"item\":{\"PK\":\"test-capacity-block\",\"capacity_block_id\":\"cr-1234567890abcdef0\",\"createdAt\":\"2024-12-25T16:00:00.000Z\"}}"
 }
 ```
 
-Error responses will return:
-
-```json
-{
-  "statusCode": 400,  // Or other appropriate error code
-  "body": "Error message"
-}
+**Lambda Processing Logs** (visible in CloudWatch):
+```
+[INFO] Scanning table CapacityBlockManagerStack-CBJobTable...
+[INFO] Retrieved 1 items from table
+[INFO] Processing item: test-capacity-block
+[DEBUG] Now: 2024-12-25T16:00:00.000Z, End: 2025-06-13T17:00:00Z, Lookahead: 2025-06-11T17:00:00Z
+[INFO] Item test-capacity-block is not yet in extension window
 ```
 
----
+### Output Description
 
-## 🔒 Security Considerations
+- The system continuously monitors capacity blocks every minute via EventBridge
+- When a capacity block approaches its expiration (within the lookahead window), the system automatically processes extension requests
+- If approval is required, notifications are sent via SNS
+- All processing activities are logged to CloudWatch for monitoring and troubleshooting
 
-- The API is secured using API key authentication
-- API keys are stored in AWS Secrets Manager
-- Access to the API should be restricted to authorized personnel
-- Consider implementing additional IAM policies to restrict access to the API Gateway
+## Next Steps
 
----
+To enhance this Guidance according to your requirements:
 
-## 🛠️ Troubleshooting
+1. **Customize Extension Logic**: Modify the Lambda function in `src/extender/index.js` to implement custom extension logic based on your business rules
 
-Common issues:
+2. **Integrate with External Systems**: Use the API to integrate with existing capacity management or monitoring systems
 
-1. **API Key Issues**: Ensure the API key is correctly retrieved from Secrets Manager and included in the `x-api-key` header
-2. **Permission Issues**: Check IAM permissions for accessing DynamoDB, Secrets Manager, and SSM
-3. **Deployment Failures**: Verify AWS credentials and region settings
+3. **Enhanced Monitoring**: Add CloudWatch dashboards and alarms for capacity block metrics
 
----
+4. **Multi-Region Support**: Deploy the stack in multiple regions for global capacity management
+
+5. **Advanced Approval Workflows**: Integrate with AWS Step Functions for complex approval processes
+
+6. **Cost Optimization**: Implement logic to analyze capacity utilization and optimize extension decisions
+
+## Cleanup
+
+1. Delete the CloudFormation stack:
+   ```bash
+   npx cdk destroy
+   ```
+
+2. Confirm deletion when prompted by typing `y`
+
+3. Manually delete any remaining resources if needed:
+   - CloudWatch log groups (if retention is set to never expire)
+   - Any manually created capacity block reservations
+
+4. If you used the approval workflow, unsubscribe from SNS notifications:
+   - Go to the SNS console
+   - Find the topic created by the stack
+   - Unsubscribe your email address
+
+## FAQ, known issues, additional considerations, and limitations
+
+### Known Issues
+
+**Issue**: API Gateway returns 403 Forbidden
+**Resolution**: Ensure the API key is correctly retrieved from Secrets Manager and included in the `x-api-key` header
+
+**Issue**: Lambda function timeout during capacity block processing
+**Resolution**: The function has a 30-second timeout. For large numbers of capacity blocks, consider implementing pagination or increasing the timeout
+
+### Additional Considerations
+
+- This Guidance creates API endpoints that require API key authentication. Ensure API keys are properly managed and rotated
+- The EventBridge rule runs every minute, which may generate CloudWatch logs. Monitor log retention settings to manage costs
+- Capacity block extensions are subject to AWS availability and pricing at the time of extension
+- The approval workflow requires manual confirmation of SNS email subscriptions
+
+### Limitations
+
+- The system processes capacity blocks sequentially, which may impact performance with large numbers of reservations
+- Extension decisions are based on time-based rules only; utilization-based extensions require custom implementation
+- The solution is designed for single-account capacity management; cross-account scenarios require additional IAM configuration
+
+For any feedback, questions, or suggestions, please use the issues tab under this repository.
+
+## Revisions
+
+| Version | Date | Description |
+|---------|------|-------------|
+| 1.0.0 | December 2024 | Initial release with automated capacity block management |
+
+## Notices
+
+Customers are responsible for making their own independent assessment of the information in this Guidance. This Guidance: (a) is for informational purposes only, (b) represents AWS current product offerings and practices, which are subject to change without notice, and (c) does not create any commitments or assurances from AWS and its affiliates, suppliers or licensors. AWS products or services are provided "as is" without warranties, representations, or conditions of any kind, whether express or implied. AWS responsibilities and liabilities to its customers are controlled by AWS agreements, and this Guidance is not part of, nor does it modify, any agreement between AWS and its customers.
