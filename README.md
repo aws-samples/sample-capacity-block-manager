@@ -329,7 +329,7 @@ For any feedback, questions, or suggestions, please use the issues tab under thi
 
 | Version | Date | Description |
 |---------|------|-------------|
-| 1.0.0 | December 2024 | Initial release with automated capacity block management |
+| 1.0.0 | July 2025 | Initial release with automated capacity block management |
 
 ## Notices
 
