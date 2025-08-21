@@ -1,4 +1,4 @@
-# Guidance for Capacity Block Manager on AWS
+# Guidance for Automated Management of AWS Capacity Blocks
 
 ![](./logo.png)
 
