@@ -13,7 +13,7 @@ const stack = new CapacityBlockManagerStack(app, 'CapacityBlockManagerStack', {
   /* If you don't specify 'env', this stack will be environment-agnostic.
    * Account/Region-dependent features and context lookups will not work,
    * but a single synthesized template can be deployed anywhere. */
-  description: "Guidance for Capacity Block Manager on AWS (SO9612)"
+  description: "Guidance for Automated Management of AWS Capacity Blocks (SO9612)"
   /* Uncomment the next line to specialize this stack for the AWS Account
    * and Region that are implied by the current CLI configuration. */
   // env: { account: process.env.CDK_DEFAULT_ACCOUNT, region: process.env.CDK_DEFAULT_REGION },
